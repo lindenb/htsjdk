@@ -6,6 +6,8 @@ import java.io.Closeable;
 import java.text.MessageFormat;
 
 /**
+ * Describes functionality for objects that produce {@link SAMRecord}s and associated information.
+ * 
  * @author mccowan
  */
 public interface SamReader extends Iterable<SAMRecord>, Closeable {

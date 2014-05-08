@@ -11,6 +11,8 @@ import java.util.Arrays;
 import java.util.zip.GZIPInputStream;
 
 /**
+ * Utilities related to processing of {@link java.io.InputStream}s encoding SAM data
+ * 
  * @author mccowan
  */
 public class SamStreams {

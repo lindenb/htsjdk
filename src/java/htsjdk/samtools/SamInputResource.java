@@ -1,6 +1,5 @@
 package htsjdk.samtools;
 
-import htsjdk.samtools.seekablestream.SeekableBufferedStream;
 import htsjdk.samtools.seekablestream.SeekableFileStream;
 import htsjdk.samtools.seekablestream.SeekableHTTPStream;
 import htsjdk.samtools.seekablestream.SeekableStream;
@@ -13,9 +12,11 @@ import java.io.InputStream;
 import java.net.URL;
 
 /**
- * Describes a resource for a SAM-like resource, including its data (where the records are), and optionally an index.
+ * Describes a SAM-like resource, including its data (where the records are), and optionally an index.
  * <p/>
- * A source may be
+ * A data or index source may originate from a {@link java.io.File}, {@link java.io.InputStream}, {@link URL}, or
+ * {@link htsjdk.samtools.seekablestream.SeekableStream}; look for the appropriate overload for
+ * {@code htsjdk.samtools.SamInputResource#of()}.
  *
  * @author mccowan
  */
@@ -32,11 +33,16 @@ public class SamInputResource {
         this.index = index;
     }
 
-    public InputResource data() {
+    /** The resource that is the SAM data (e.g., records) */
+    InputResource data() {
         return source;
     }
 
-    public InputResource indexMaybe() {
+    /**
+     * The resource that is the SAM index
+     * @return null, if no index is defined for this resource
+     */
+    InputResource indexMaybe() {
         return index;
     }
 

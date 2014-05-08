@@ -76,8 +76,8 @@ public abstract class SamReaderFactory {
     }
 
     /**
-     * Creates an "empty-ish" factory with no enabled {@link Option}s,
-     * {@link ValidationStringency#DEFAULT_STRINGENCY}, and {@link htsjdk.samtools.DefaultSAMRecordFactory}.
+     * Creates an "empty" factory with no enabled {@link Option}s, {@link ValidationStringency#DEFAULT_STRINGENCY}, and 
+     * {@link htsjdk.samtools.DefaultSAMRecordFactory}.
      */
     public static SamReaderFactory make() {
         return new SamReaderFactoryImpl(EnumSet.noneOf(Option.class), ValidationStringency.DEFAULT_STRINGENCY, DefaultSAMRecordFactory.getInstance());
@@ -207,6 +207,7 @@ public abstract class SamReaderFactory {
         }
     }
 
+    /** A collection of binary {@link SamReaderFactory} options. */
     public enum Option {
         /**
          * The factory's {@link SamReader}s will produce populated (non-null) values when calling {@link SAMRecord#getFileSource()}.
@@ -295,7 +296,7 @@ public abstract class SamReaderFactory {
             }
         };
 
-        public static EnumSet<Option> DEFAULTS = EnumSet.noneOf(Option.class); // TODO: Are these the appropriate defaults?
+        public static EnumSet<Option> DEFAULTS = EnumSet.noneOf(Option.class);
 
         /** Applies this option to the provided reader, if applicable. */
         void applyTo(final SamReader.PrimitiveSamReaderToSamReaderAdapter reader) {
