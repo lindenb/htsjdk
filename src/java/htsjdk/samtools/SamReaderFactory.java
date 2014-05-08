@@ -18,12 +18,12 @@ import java.util.zip.GZIPInputStream;
  * <p>Describes the functionality for producing {@link SamReader}, and offers a
  * handful of static generators.</p>
  * <pre>
- *     SamReaderFactory.getDefault().open(new File("/my/bam.bam");
+ *     SamReaderFactory.makeDefault().open(new File("/my/bam.bam");
  * </pre>
  * <p>Example: Configure a factory</p>
  * <pre>
  *      final {@link SamReaderFactory} factory =
- *          SamReaderFactory.getDefault()
+ *          SamReaderFactory.makeDefault()
  *              .enable({@link Option#INCLUDE_SOURCE_IN_RECORDS}, {@link Option#VALIDATE_CRC_CHECKSUMS})
  *              .validationStringency({@link ValidationStringency#SILENT});
  *
@@ -31,7 +31,7 @@ import java.util.zip.GZIPInputStream;
  * <p>Example: Open two bam files from different sources, using different options</p>
  * <pre>
  *     final {@link SamReaderFactory} factory =
- *          SamReaderFactory.getDefault()
+ *          SamReaderFactory.makeDefault()
  *              .enable({@link Option#INCLUDE_SOURCE_IN_RECORDS}, {@link Option#VALIDATE_CRC_CHECKSUMS})
  *              .validationStringency({@link ValidationStringency#SILENT});
  *
