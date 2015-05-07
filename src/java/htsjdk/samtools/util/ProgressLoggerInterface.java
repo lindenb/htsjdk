@@ -25,11 +25,12 @@ package htsjdk.samtools.util;
  */
 
 import htsjdk.samtools.SAMRecord;
+import java.io.Closeable;
 
 /**
  * An interface defining the record() methods of the Picard-public ProgressLogger implementation.
  */
-public interface ProgressLoggerInterface {
+public interface ProgressLoggerInterface extends Closeable {
 
 	public boolean record(final String chrom, final int pos);
 	public boolean record(final SAMRecord rec);

@@ -1,9 +1,12 @@
 package htsjdk.samtools.util;
 
 import htsjdk.samtools.SAMRecord;
-
+import java.lang.management.ManagementFactory;
+import javax.management.MBeanServer;
+import javax.management.ObjectName; 
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
+import java.io.Closeable;
 
 /**
  * Little progress logging class to facilitate consistent output of useful information when progressing
@@ -11,7 +14,7 @@ import java.text.NumberFormat;
  *
  * @author Tim Fennell
  */
-public class ProgressLogger implements ProgressLoggerInterface {
+public class ProgressLogger implements ProgressLoggerInterface, Closeable,ProgressLoggerMBean {
     private final Log log;
     private final int n;
     private final String verb;
@@ -25,7 +28,12 @@ public class ProgressLogger implements ProgressLoggerInterface {
 
 	// Set to -1 until the first record is added
     private long lastStartTime = -1;
-
+    
+    //MBean for monitoring
+    private ObjectName objectMBean=null;
+    //last record seen
+    private String lastRecord="";  
+    
     /**
      * Construct a progress logger.
      * @param log the Log object to write outputs to
@@ -38,6 +46,15 @@ public class ProgressLogger implements ProgressLoggerInterface {
         this.n = n;
         this.verb = verb;
         this.noun = noun;
+        try {
+            /* get a MBean server that has been created and initialized by the platform, */
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            /* defines an object name for the MBean instance that it will create */
+            this.objectMBean = new ObjectName("htsjdk.samtools.util:type="+noun);
+            mbs.registerMBean(this, this.objectMBean);
+        } catch(Exception err) {
+            this.objectMBean=null;
+        }
     }
 
     /**
@@ -79,6 +96,8 @@ public class ProgressLogger implements ProgressLoggerInterface {
             if (chrom == null) readInfo = "*/*";
             else readInfo = chrom + ":" + fmt.format(pos);
 
+            this.lastRecord = readInfo;
+            
             log.info(this.verb, " ", processed, " " + noun + ".  Elapsed time: ", elapsed, "s.  Time for last ", fmt.format(this.n),
                      ": ", period, "s.  Last read position: ", readInfo);
             return true;
@@ -109,6 +128,7 @@ public class ProgressLogger implements ProgressLoggerInterface {
     }
     
     /** Returns the count of records processed. */
+    @Override
     public long getCount() { return this.processed; }
 
     /** Returns the number of seconds since progress tracking began. */
@@ -131,5 +151,44 @@ public class ProgressLogger implements ProgressLoggerInterface {
         final long h = allMinutes / 60;
 
         return timeFmt.format(h) + ":" + timeFmt.format(m) + ":" + timeFmt.format(s);
+    }
+    
+    /* the noun to use when logging, e.g. "Records, Variants, Loci" */
+    @Override
+    public String getNoun() {
+        return this.noun;
+    }
+    
+    /* verb the verb to log, e.g. "Processed, Read, Written" */
+    @Override
+    public String getVerb() {
+        return this.verb;
+    }
+    
+    /** elapsed time */
+     @Override
+    public String getElapsedTime(){
+        return this.formatElapseTime(this.getElapsedSeconds());
+    }
+    
+    /** elapsed time */
+     @Override
+    public String getLastRecord(){
+        return this.lastRecord;
+    }
+    
+    /** close and dispose mbean if needed */
+    @Override
+    public void close() {
+        if(this.objectMBean!=null) {
+            try {
+                MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+                mbs.unregisterMBean(this.objectMBean);
+            } catch(Exception err) {
+            //ignore   
+            } finally {
+            this.objectMBean=null;
+            }
+        }
     }
 }
