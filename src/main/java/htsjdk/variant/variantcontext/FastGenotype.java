@@ -74,7 +74,8 @@ import java.util.Map;
  * @author Mark DePristo
  * @since 05/12
  */
-public final class FastGenotype extends Genotype {
+public final class FastGenotype extends AbstractGenotype {
+    private static final long serialVersionUID = 1L;
     private final List<Allele> alleles;
     private final boolean isPhased;
     private final int GQ;
