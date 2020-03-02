@@ -26,7 +26,7 @@ class FastqReaderWriterTest extends UnitSpec {
 
   "FastqWriter" should "write four lines per record to file" in {
     val path = makeTempFile("test.", ".fastq")
-    val out = new FastqWriterFactory().newWriter(path.toFile)
+    val out = new FastqWriterFactory().newWriter(path)
     val recs = Seq(fq("q1", 50), fq("q2", 48), fq("q3", 55))
     val Seq(q1, q2, q3) = recs
 
@@ -46,7 +46,7 @@ class FastqReaderWriterTest extends UnitSpec {
 
   it should "write a record with only a single base" in {
     val path = makeTempFile("test.", ".fastq")
-    val out = new FastqWriterFactory().newWriter(path.toFile)
+    val out = new FastqWriterFactory().newWriter(path)
     out.write(fq("q1", 1))
     out.close()
     val lines = IOUtil.slurpLines(path.toFile)
@@ -56,7 +56,7 @@ class FastqReaderWriterTest extends UnitSpec {
 
   it should "write a record with zero-length bases and quals" in {
     val path = makeTempFile("test.", ".fastq")
-    val out = new FastqWriterFactory().newWriter(path.toFile)
+    val out = new FastqWriterFactory().newWriter(path)
     out.write(fq("q1", 0))
     out.close()
     val lines = IOUtil.slurpLines(path.toFile)
@@ -67,12 +67,12 @@ class FastqReaderWriterTest extends UnitSpec {
 
   "FastqReader" should "read back a fastq file written by FastqWriter" in {
     val path = makeTempFile("test.", ".fastq")
-    val out = new FastqWriterFactory().newWriter(path.toFile)
+    val out = new FastqWriterFactory().newWriter(path)
     val recs = Seq(fq("q1", 50), fq("q2", 100), fq("q3", 150))
     recs.foreach(rec => out.write(rec))
     out.close()
 
-    val in = new FastqReader(path.toFile)
+    val in = new FastqReader(path)
     val recs2 = in.iterator().toList
     in.close()
     recs2 should contain theSameElementsInOrderAs recs
@@ -100,7 +100,7 @@ class FastqReaderWriterTest extends UnitSpec {
 
   it should "read an empty file just fine" in {
     val path = makeTempFile("empty.", ".fastq")
-    val in = new FastqReader(path.toFile)
+    val in = new FastqReader(path)
     while (in.hasNext) in.next()
     an[Exception] shouldBe thrownBy { in.next() }
     in.close()

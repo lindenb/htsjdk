@@ -31,8 +31,8 @@ public class FastqWriterFactory {
     }
     
     public FastqWriter newWriter(final Path out) {
-        final FastqWriter writer = new BasicFastqWriter(out, createMd5);
-        if (useAsyncIo) {
+        final FastqWriter writer = new BasicFastqWriter(out, isCreateMd5());
+        if (isUseAsyncIo()) {
             return new AsyncFastqWriter(writer, AbstractAsyncWriter.DEFAULT_QUEUE_SIZE);
         }
         else {
