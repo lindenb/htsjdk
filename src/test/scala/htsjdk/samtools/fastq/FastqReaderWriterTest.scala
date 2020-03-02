@@ -90,7 +90,7 @@ class FastqReaderWriterTest extends UnitSpec {
         |####
       """.stripMargin.trim
 
-    val in = new FastqReader(null, new BufferedReader(new StringReader(fastq)))
+    val in = new FastqReader((java.nio.file.Path)null, new BufferedReader(new StringReader(fastq)))
     an[Exception] shouldBe thrownBy { in.next() }
   }
 
@@ -116,7 +116,7 @@ class FastqReaderWriterTest extends UnitSpec {
         |BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
       """.stripMargin
     val reader = new BufferedReader(new StringReader(fastq))
-    val in = new FastqReader(null, reader, true)
+    val in = new FastqReader((java.nio.file.Path)null, reader, true)
     while (in.hasNext) in.next()
   }
 
@@ -130,7 +130,7 @@ class FastqReaderWriterTest extends UnitSpec {
         |BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
       """.stripMargin
     val reader = new BufferedReader(new StringReader(fastq))
-    an[SAMException] shouldBe thrownBy { val in = new FastqReader(null, reader, false) }
+    an[SAMException] shouldBe thrownBy { val in = new FastqReader((java.nio.file.Path)null, reader, false) }
   }
 
   it should "fail on a truncated file" in {
@@ -145,7 +145,7 @@ class FastqReaderWriterTest extends UnitSpec {
     Range.inclusive(1, 3).foreach { n =>
       val text   = fastq.linesIterator.take(n).mkString("\n")
       val reader = new BufferedReader(new StringReader(text))
-      an[Exception] shouldBe thrownBy { new FastqReader(null, reader).iterator().toSeq }
+      an[Exception] shouldBe thrownBy { new FastqReader((java.nio.file.Path)null, reader).iterator().toSeq }
     }
   }
 
@@ -159,7 +159,7 @@ class FastqReaderWriterTest extends UnitSpec {
       """.stripMargin.trim
 
     val reader = new BufferedReader(new StringReader(fastq))
-    an[Exception] shouldBe thrownBy { new FastqReader(null, reader).iterator().toSeq }
+    an[Exception] shouldBe thrownBy { new FastqReader((java.nio.file.Path)null, reader).iterator().toSeq }
   }
 
   it should "fail if either header line is empty" in {
