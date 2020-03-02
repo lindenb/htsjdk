@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.Flushable;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.nio.file.Path;
 
 /**
  * In general FastqWriterFactory should be used so that AsyncFastqWriter can be enabled, but there are some
@@ -40,15 +41,23 @@ public class BasicFastqWriter implements FastqWriter,Flushable {
     private final PrintStream writer;
 
     public BasicFastqWriter(final File file) {
+        this(file.toPath());
+    }
+
+    public BasicFastqWriter(final Path file) {
         this(file, false);
     }
 
     public BasicFastqWriter(final File file, final boolean createMd5) {
+        this(file.toPath(), createMd5);
+    }
+    
+    public BasicFastqWriter(final Path file, final boolean createMd5) {
         this(file, new PrintStream(IOUtil.maybeBufferOutputStream(maybeMd5Wrap(file, createMd5))));
     }
 
-    private BasicFastqWriter(final File file, final PrintStream writer) {
-        this.path = (file != null? file.getAbsolutePath(): "");
+    private BasicFastqWriter(final Path file, final PrintStream writer) {
+        this.path = (file != null? file.toAbsolutePath().toString(): "");
         this.writer = writer;
     }
 
@@ -77,7 +86,7 @@ public class BasicFastqWriter implements FastqWriter,Flushable {
         writer.close();
     }
 
-    private static OutputStream maybeMd5Wrap(final File file, final boolean createMd5) {
+    private static OutputStream maybeMd5Wrap(final Path file, final boolean createMd5) {
         if (createMd5) {
             return IOUtil.openFileForMd5CalculatingWriting(file);
         } else {

@@ -10,17 +10,18 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
 public class QualityEncodingDetectorTest extends HtsjdkTest {
 
     private static class Testcase {
-        private final File f;
+        private final Path f;
         private final FastqQualityFormat q;
 
-        Testcase(final File file, final FastqQualityFormat qualityFormat) {
+        Testcase(final Path file, final FastqQualityFormat qualityFormat) {
             this.f = file;
             this.q = qualityFormat;
         }
@@ -28,15 +29,15 @@ public class QualityEncodingDetectorTest extends HtsjdkTest {
 
     final static List<Testcase> FASTQ_TESTCASES = Arrays.asList(
             // Need to use full-range quality here, as Solexa and Illumina are near indistinguishable
-            new Testcase(new File("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/solexa_full_range_as_solexa.fastq"), FastqQualityFormat.Solexa),
-            new Testcase(new File("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/s_1_sequence.txt"), FastqQualityFormat.Illumina),
-            new Testcase(new File("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/5k-30BB2AAXX.3.aligned.sam.fastq"), FastqQualityFormat.Standard)
+            new Testcase(Paths.get("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/solexa_full_range_as_solexa.fastq"), FastqQualityFormat.Solexa),
+            new Testcase(Paths.get("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/s_1_sequence.txt"), FastqQualityFormat.Illumina),
+            new Testcase(Paths.get("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/5k-30BB2AAXX.3.aligned.sam.fastq"), FastqQualityFormat.Standard)
     );
     final static List<Testcase> BAM_TESTCASES = Arrays.asList(
-            new Testcase(new File("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/unmapped.sam"), FastqQualityFormat.Standard),
-            new Testcase(new File("./src/test/resources/htsjdk/samtools/BAMFileIndexTest/index_test.bam"), FastqQualityFormat.Standard),
-            new Testcase(new File("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/solexa-as-standard.bam"), FastqQualityFormat.Solexa),
-            new Testcase(new File("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/illumina-as-standard.bam"), FastqQualityFormat.Illumina)
+            new Testcase(Paths.get("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/unmapped.sam"), FastqQualityFormat.Standard),
+            new Testcase(Paths.get("./src/test/resources/htsjdk/samtools/BAMFileIndexTest/index_test.bam"), FastqQualityFormat.Standard),
+            new Testcase(Paths.get("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/solexa-as-standard.bam"), FastqQualityFormat.Solexa),
+            new Testcase(Paths.get("./src/test/resources/htsjdk/samtools/util/QualityEncodingDetectorTest/illumina-as-standard.bam"), FastqQualityFormat.Illumina)
 
     );
 
@@ -60,14 +61,14 @@ public class QualityEncodingDetectorTest extends HtsjdkTest {
     }
 
     @Test(dataProvider = "FASTQ_TESTCASES", groups = {"unix"})
-    public void testFastqQualityInference(final File input, final FastqQualityFormat expectedQualityFormat) {
+    public void testFastqQualityInference(final Path input, final FastqQualityFormat expectedQualityFormat) {
         final FastqReader reader = new FastqReader(input);
         Assert.assertEquals(QualityEncodingDetector.detect(reader), expectedQualityFormat);
         reader.close();
     }
 
     @Test(dataProvider = "BAM_TESTCASES", groups = {"unix"})
-    public void testBamQualityInference(final File input, final FastqQualityFormat expectedQualityFormat) {
+    public void testBamQualityInference(final Path input, final FastqQualityFormat expectedQualityFormat) {
         final SamReader reader = SamReaderFactory.makeDefault().open(input);
         Assert.assertEquals(QualityEncodingDetector.detect(reader), expectedQualityFormat);
     }

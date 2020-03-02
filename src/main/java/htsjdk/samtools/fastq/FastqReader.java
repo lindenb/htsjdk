@@ -31,6 +31,7 @@ import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -57,7 +58,7 @@ public class FastqReader implements Iterator<FastqRecord>, Iterable<FastqRecord>
         @Override public String toString() { return this.printable; }
     }
 
-    final private File fastqFile;
+    final private Path fastqFile;
     final private BufferedReader reader;
     private FastqRecord nextRecord;
     private int line=1;
@@ -65,29 +66,44 @@ public class FastqReader implements Iterator<FastqRecord>, Iterable<FastqRecord>
     final private boolean skipBlankLines;
 
     public FastqReader(final File file) {
-        this(file,false);
+        this(file.toPath());
     }
     
+    public FastqReader(final Path file) {
+        this(file,false);
+    }
+   
+    /**
+     * see {@link #FastqReader(Path, boolean)}
+     */
+    public FastqReader(final File file, final boolean skipBlankLines) {
+        this(file.toPath(), skipBlankLines);
+    }
+
     /**
      * Constructor
      * @param file of FASTQ to read read. Will be opened with htsjdk.samtools.util.IOUtil.openFileForBufferedReading
      * @param skipBlankLines should we skip blank lines ?
      */
-    public FastqReader(final File file, final boolean skipBlankLines) {
+    public FastqReader(final Path file, final boolean skipBlankLines) {
         this(file, IOUtil.openFileForBufferedReading(file), skipBlankLines);
     }
-
+    
     public FastqReader(final BufferedReader reader) {
         this(null, reader);
     }
 
+    public FastqReader(final File file, final BufferedReader reader,boolean skipBlankLines) {
+        this(IOUtil.toPath(file), reader, skipBlankLines);
+    }
+    
     /**
      * Constructor
      * @param file Name of FASTQ being read, or null if not known.
      * @param reader input reader . Will be closed by the close method
      * @param skipBlankLines should we skip blank lines ?
      */
-    public FastqReader(final File file, final BufferedReader reader,boolean skipBlankLines) {
+    public FastqReader(final Path file, final BufferedReader reader,boolean skipBlankLines) {
         this.fastqFile = file;
         this.reader = reader;
         this.skipBlankLines = skipBlankLines;
@@ -168,10 +184,17 @@ public class FastqReader implements Iterator<FastqRecord>, Iterable<FastqRecord>
 
 
     /**
+     * deprecated use {@link #getPath()}
+     */
+    @Deprecated
+    public File getFile() { return fastqFile==null ? null: fastqFile.toFile(); }
+
+    /**
      * @return Name of FASTQ being read, or null if not known.
      */
-    public File getFile() { return fastqFile ; }
-
+    public Path getPath() { return fastqFile ; }
+   
+    
     @Override
     public void close() {
         try {
@@ -198,7 +221,7 @@ public class FastqReader implements Iterator<FastqRecord>, Iterable<FastqRecord>
 
     private String getAbsolutePath() {
         if (fastqFile == null) return "";
-        else return fastqFile.getAbsolutePath();
+        else return fastqFile.toAbsolutePath().toString();
     }
 
     private String readLineConditionallySkippingBlanks() throws IOException {
