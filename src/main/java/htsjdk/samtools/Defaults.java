@@ -1,7 +1,7 @@
 package htsjdk.samtools;
 
 import htsjdk.samtools.util.Log;
-
+import htsjdk.variant.vcf.VCFReaderFactory;
 import java.io.File;
 import java.util.Collections;
 import java.util.Optional;
@@ -110,7 +110,11 @@ public class Defaults {
      */
     public static final boolean DISABLE_SNAPPY_COMPRESSOR;
 
-
+    /**
+     * Custom {@link VCFReaderFactory} class. Default is an empty string. 
+     */
+    public static final String VCF_READER_FACTORY;
+    
     public static final String SAMJDK_PREFIX = "samjdk.";
     static {
         CREATE_INDEX = getBooleanProperty("create_index", false);
@@ -134,6 +138,7 @@ public class Defaults {
         SAM_FLAG_FIELD_FORMAT = SamFlagField.valueOf(getStringProperty("sam_flag_field_format", SamFlagField.DECIMAL.name()));
         SRA_LIBRARIES_DOWNLOAD = getBooleanProperty("sra_libraries_download", false);
         DISABLE_SNAPPY_COMPRESSOR = getBooleanProperty(DISABLE_SNAPPY_PROPERTY_NAME, false);
+        VCF_READER_FACTORY = getStringProperty("vcfreader_factory", "");
     }
 
     /**
@@ -157,6 +162,7 @@ public class Defaults {
         result.put("CUSTOM_READER_FACTORY", CUSTOM_READER_FACTORY);
         result.put("SAM_FLAG_FIELD_FORMAT", SAM_FLAG_FIELD_FORMAT);
         result.put("DISABLE_SNAPPY_COMPRESSOR", DISABLE_SNAPPY_COMPRESSOR);
+        result.put("VCF_READER_FACTORY", VCF_READER_FACTORY);
         return Collections.unmodifiableSortedMap(result);
     }
 
