@@ -1,10 +1,9 @@
-package htsjdk.tribble.gff;
+package htsjdk.tribble.gene;
 
 import htsjdk.samtools.util.BlockCompressedOutputStream;
 import htsjdk.samtools.util.FileExtensions;
 import htsjdk.samtools.util.IOUtil;
 import htsjdk.tribble.TribbleException;
-import htsjdk.tribble.gene.AbstractGeneWriter;
 
 import java.io.BufferedOutputStream;
 import java.io.Closeable;
@@ -25,27 +24,29 @@ import java.util.function.Consumer;
  * A class to write out gff3 files.  Features are added using {@link #addFeature(Gff3Feature)}, directives using {@link #addDirective(Gff3Codec.Gff3Directive)},
  * and comments using {@link #addComment(String)}.  Note that the version 3 directive is automatically added at creation, so should not be added separately.
  */
-public class Gff3Writer extends AbstractGeneWriter {
+public abstract class AbstractGeneWriter<T extends GeneFeature<T>> implements Closeable {
 
     private final OutputStream out;
-    private final static String version = "3.1.25";
+    private final AbstractGeneConstants geneConstants;
 
-    public Gff3Writer(final Path path) throws IOException {
-        if (FileExtensions.GFF3.stream().noneMatch(e -> path.toString().endsWith(e))) {
-            throw new TribbleException("File " + path + " does not have extension consistent with gff3");
-        }
-
-        final OutputStream outputStream = IOUtil.hasGzipFileExtension(path)? new BlockCompressedOutputStream(path.toFile()) : Files.newOutputStream(path);
+    
+    protected AbstractGeneWriter(AbstractGeneConstants geneConstants,final Path path) throws IOException {
+    	this.geneConstants = geneConstants;
+    	validatePath(path);
+    	final OutputStream outputStream = IOUtil.hasGzipFileExtension(path)? new BlockCompressedOutputStream(path.toFile()) : Files.newOutputStream(path);
         out = new BufferedOutputStream(outputStream);
         //start with version directive
         initialize();
     }
 
-    public Gff3Writer(final OutputStream stream) {
+    public AbstractGeneWriter(AbstractGeneConstants geneConstants,final OutputStream stream) {
+    	this.geneConstants = geneConstants;
         out = stream;
         initialize();
     }
 
+    protected abstract void validatePath(final Path path) throws TribbleException;
+    
     private void initialize() {
         try {
             writeWithNewLine(Gff3Codec.Gff3Directive.VERSION3_DIRECTIVE.encode(version));
@@ -56,7 +57,7 @@ public class Gff3Writer extends AbstractGeneWriter {
 
     private void writeWithNewLine(final String txt) throws IOException {
         out.write(txt.getBytes());
-        out.write(Gff3Constants.END_OF_LINE_CHARACTER);
+        out.write(AbstractGeneConstants.END_OF_LINE_CHARACTER);
     }
 
     private void tryToWrite(final String string) {
@@ -67,33 +68,33 @@ public class Gff3Writer extends AbstractGeneWriter {
         }
     }
 
-    private void writeFirstEightFields(final Gff3Feature feature) throws IOException {
-        writeJoinedByDelimiter(Gff3Constants.FIELD_DELIMITER, this::tryToWrite, Arrays.asList(
+    protected void writeFirstEightFields(final T feature) throws IOException {
+        writeJoinedByDelimiter(AbstractGeneConstants.FIELD_DELIMITER, this::tryToWrite, Arrays.asList(
                 escapeString(feature.getContig()),
                 escapeString(feature.getSource()),
                 escapeString(feature.getType()),
                 Integer.toString(feature.getStart()),
                 Integer.toString(feature.getEnd()),
-                feature.getScore() < 0 ? Gff3Constants.UNDEFINED_FIELD_VALUE : Double.toString(feature.getScore()),
+                feature.getScore() < 0 ? AbstractGeneConstants.UNDEFINED_FIELD_VALUE : Double.toString(feature.getScore()),
                 feature.getStrand().toString(),
-                feature.getPhase() < 0 ? Gff3Constants.UNDEFINED_FIELD_VALUE : Integer.toString(feature.getPhase())
+                feature.getPhase() < 0 ? AbstractGeneConstants.UNDEFINED_FIELD_VALUE : Integer.toString(feature.getPhase())
                 )
         );
     }
 
     void writeAttributes(final Map<String, List<String>> attributes) throws IOException {
         if (attributes.isEmpty()) {
-            out.write(Gff3Constants.UNDEFINED_FIELD_VALUE.getBytes());
+            out.write(AbstractGeneConstants.UNDEFINED_FIELD_VALUE.getBytes());
         }
 
-        writeJoinedByDelimiter(Gff3Constants.ATTRIBUTE_DELIMITER, e ->  writeKeyValuePair(e.getKey(), e.getValue()), attributes.entrySet());
+        writeJoinedByDelimiter(AbstractGeneConstants.ATTRIBUTE_DELIMITER, e ->  writeKeyValuePair(e.getKey(), e.getValue()), attributes.entrySet());
     }
 
     void writeKeyValuePair(final String key, final List<String> values) {
         try {
             tryToWrite(key);
-            out.write(Gff3Constants.KEY_VALUE_SEPARATOR);
-            writeJoinedByDelimiter(Gff3Constants.VALUE_DELIMITER, v -> tryToWrite(escapeString(v)), values);
+            out.write(AbstractGeneConstants.KEY_VALUE_SEPARATOR);
+            writeJoinedByDelimiter(AbstractGeneConstants.VALUE_DELIMITER, v -> tryToWrite(escapeString(v)), values);
         } catch (final IOException ex) {
             throw new TribbleException("error writing out key value pair " + key + " " + values);
         }
@@ -117,11 +118,11 @@ public class Gff3Writer extends AbstractGeneWriter {
      * @param feature the feature to be added
      * @throws IOException
      */
-    public void addFeature(final Gff3Feature feature) throws IOException {
+    public void addFeature(final T feature) throws IOException {
         writeFirstEightFields(feature);
-        out.write(Gff3Constants.FIELD_DELIMITER);
+        out.write(AbstractGeneConstants.FIELD_DELIMITER);
         writeAttributes(feature.getAttributes());
-        out.write(Gff3Constants.END_OF_LINE_CHARACTER);
+        out.write(AbstractGeneConstants.END_OF_LINE_CHARACTER);
     }
 
     /***
@@ -157,17 +158,6 @@ public class Gff3Writer extends AbstractGeneWriter {
         writeWithNewLine(directive.encode(object));
     }
 
-    /**
-     * Add a directive
-     * @param directive the directive to be added
-     * @throws IOException
-     */
-    public void addDirective(final Gff3Codec.Gff3Directive directive) throws IOException {
-        if (directive == Gff3Codec.Gff3Directive.VERSION3_DIRECTIVE) {
-            throw new TribbleException("VERSION3_DIRECTIVE is automatically added and should not be added manually.");
-        }
-        addDirective(directive, null);
-    }
 
     /**
      * Add comment line
@@ -175,7 +165,7 @@ public class Gff3Writer extends AbstractGeneWriter {
      * @throws IOException
      */
     public void addComment(final String comment) throws IOException {
-        out.write(Gff3Constants.COMMENT_START.getBytes());
+        out.write(AbstractGeneConstants.COMMENT_START.getBytes());
         writeWithNewLine(comment);
     }
 

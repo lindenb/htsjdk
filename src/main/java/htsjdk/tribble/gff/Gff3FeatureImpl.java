@@ -3,6 +3,7 @@ package htsjdk.tribble.gff;
 import htsjdk.samtools.util.Tuple;
 import htsjdk.tribble.TribbleException;
 import htsjdk.tribble.annotation.Strand;
+import htsjdk.tribble.gene.AbstractGeneFeatureImpl;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -11,7 +12,7 @@ import java.util.stream.Collectors;
  * Gff3 format spec is defined at https://github.com/The-Sequence-Ontology/Specifications/blob/31f62ad469b31769b43af42e0903448db1826925/gff3.md
  * Discontinuous features which are split between multiple lines in the gff files are implemented as separate features linked as "co-features"
  */
-public class Gff3FeatureImpl implements Gff3Feature {
+public class Gff3FeatureImpl extends AbstractGeneFeatureImpl<AbstractGeneBaseData> Gff3Feature {
     private final static String DERIVES_FROM_ATTRIBUTE_KEY = "Derives_from";
 
     /**

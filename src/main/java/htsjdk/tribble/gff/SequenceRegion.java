@@ -3,7 +3,7 @@ package htsjdk.tribble.gff;
 import htsjdk.samtools.util.Locatable;
 
 /**
- * Represents a sequence region feature in a gff3 file.  May be linear or circular.
+ * Represents a sequence region feature in a gff3 or gtf file.  May be linear or circular.
  */
 public class SequenceRegion implements Locatable {
     private final int start;
@@ -12,7 +12,7 @@ public class SequenceRegion implements Locatable {
     private Boolean isCircular;
     private int hashCode;
 
-    SequenceRegion(final String contig, final int start, final int end) {
+    public SequenceRegion(final String contig, final int start, final int end) {
         this(contig, start, end, false);
     }
 
@@ -24,7 +24,7 @@ public class SequenceRegion implements Locatable {
         hashCode = computeHashCode();
     }
 
-    void setCircular(final boolean isCircular) {
+    public void setCircular(final boolean isCircular) {
         this.isCircular = isCircular;
         hashCode = computeHashCode();
     }
