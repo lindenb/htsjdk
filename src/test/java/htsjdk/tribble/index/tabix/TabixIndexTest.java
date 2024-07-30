@@ -47,7 +47,9 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -75,6 +77,16 @@ public class TabixIndexTest extends HtsjdkTest {
         // levels; and more importantly, arbitrary order of bins in bin list.
     }
 
+    /**
+     * Read an existing index from disk using inputstream
+     */
+    @Test(dataProvider = "readWriteTestDataProvider")
+    public void readUsingInputStream(final File tabixFile) throws Exception {
+        try(InputStream is = new FileInputStream(tabixFile)) {
+            final TabixIndex index = new TabixIndex(is);
+            }
+        }
+    
     @DataProvider(name = "readWriteTestDataProvider")
     public Object[][] readWriteTestDataProvider() {
         return new Object[][]{
