@@ -2,7 +2,13 @@ package htsjdk.tribble.gff;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.function.Predicate;
 import htsjdk.samtools.util.LocationAware;
 import htsjdk.tribble.AbstractFeatureCodec;
@@ -33,10 +39,15 @@ abstract class AbstractGxxCodec extends AbstractFeatureCodec<Gff3Feature, LineIt
     protected static final int GENOMIC_PHASE_INDEX = 7;
     protected static final int EXTRA_FIELDS_INDEX = 8;
 
+    protected final Queue<Gff3FeatureImpl> featuresToFlush = new ArrayDeque<>();
+    protected final Queue<Gff3FeatureImpl> activeFeatures = new ArrayDeque<>();
+    protected final Map<Integer, String> commentsWithLineNumbers = new LinkedHashMap<>();
     protected final DecodeDepth decodeDepth;
 
     /** filter to removing keys from the EXTRA_FIELDS column */
     protected final Predicate<String> filterOutAttribute;
+    
+    protected int currentLine = 0;
 
     /**
      * @param decodeDepth a value from DecodeDepth
@@ -76,6 +87,23 @@ abstract class AbstractGxxCodec extends AbstractFeatureCodec<Gff3Feature, LineIt
         return values.get(0);
     }
 
+    /**
+     * Gets map from line number to comment found on that line.  The text of the comment EXCLUDES the leading # which indicates a comment line.
+     * @return Map from line number to comment found on line
+     */
+    public final Map<Integer, String> getCommentsWithLineNumbers() {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(commentsWithLineNumbers));
+    }
+
+    /**
+     * Gets list of comments parsed by the codec.  Excludes leading # which indicates a comment line.
+     * @return
+     */
+    public final List<String> getCommentTexts() {
+        return Collections.unmodifiableList(new ArrayList<>(commentsWithLineNumbers.values()));
+    }
+
+    
     @Override
     public final LineIterator makeSourceFromStream(final InputStream bufferedInputStream) {
         return new LineIteratorImpl(new SynchronousLineReader(bufferedInputStream));

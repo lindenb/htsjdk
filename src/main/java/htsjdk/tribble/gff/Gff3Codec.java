@@ -37,19 +37,14 @@ public class Gff3Codec extends AbstractGxxCodec {
 
     private static final String ARTEMIS_FASTA_MARKER = ">";
 
-    private final Queue<Gff3FeatureImpl> activeFeatures = new ArrayDeque<>();
-    private final Queue<Gff3FeatureImpl> featuresToFlush = new ArrayDeque<>();
     private final Map<String, Set<Gff3FeatureImpl>> activeFeaturesWithIDs = new HashMap<>();
     private final Map<String, Set<Gff3FeatureImpl>> activeParentIDs = new HashMap<>();
 
     private final Map<String, SequenceRegion> sequenceRegionMap = new LinkedHashMap<>();
-    private final Map<Integer, String> commentsWithLineNumbers = new LinkedHashMap<>();
 
     private final static Log logger = Log.getInstance(Gff3Codec.class);
 
     private boolean reachedFasta = false;
-
-    private int currentLine = 0;
     
     public Gff3Codec() {
         this(DecodeDepth.DEEP);
@@ -219,22 +214,6 @@ public class Gff3Codec extends AbstractGxxCodec {
     }
 
     /**
-     * Gets map from line number to comment found on that line.  The text of the comment EXCLUDES the leading # which indicates a comment line.
-     * @return Map from line number to comment found on line
-     */
-    public Map<Integer, String> getCommentsWithLineNumbers() {
-        return Collections.unmodifiableMap(new LinkedHashMap<>(commentsWithLineNumbers));
-    }
-
-    /**
-     * Gets list of comments parsed by the codec.  Excludes leading # which indicates a comment line.
-     * @return
-     */
-    public List<String> getCommentTexts() {
-        return Collections.unmodifiableList(new ArrayList<>(commentsWithLineNumbers.values()));
-    }
-
-    /**
      * If sequence region of feature's contig has been specified with sequence region directive, validates that
      * feature's coordinates are within the specified sequence region.  TribbleException is thrown if invalid.
      * @param feature
@@ -265,47 +244,47 @@ public class Gff3Codec extends AbstractGxxCodec {
             if (canDecode) {
 
                 // Crack open the file and look at the top of it:
-                final InputStream inputStream = IOUtil.hasGzipFileExtension(p)? new GZIPInputStream(Files.newInputStream(p)) : Files.newInputStream(p);
+                try(InputStream inputStream = IOUtil.hasGzipFileExtension(p)? new GZIPInputStream(Files.newInputStream(p)) : Files.newInputStream(p)) {
 
-                try ( BufferedReader br = new BufferedReader(new InputStreamReader(inputStream)) ) {
-
-                    String line = br.readLine();
-
-                    // First line must be GFF version directive
-                    if (Gff3Directive.toDirective(line) != Gff3Directive.VERSION3_DIRECTIVE) {
-                        return false;
-                    }
-                    while (line.startsWith(Gff3Constants.COMMENT_START)) {
-                        line = br.readLine();
-                        if ( line == null ) {
+                    try ( BufferedReader br = new BufferedReader(new InputStreamReader(inputStream)) ) {
+    
+                        String line = br.readLine();
+    
+                        // First line must be GFF version directive
+                        if (Gff3Directive.toDirective(line) != Gff3Directive.VERSION3_DIRECTIVE) {
                             return false;
                         }
-                    }
-
-                    // make sure line conforms to gtf spec
-                    final List<String> fields = ParsingUtils.split(line, Gff3Constants.FIELD_DELIMITER);
-
-                    canDecode &= fields.size() == NUM_FIELDS;
-
-                    if (canDecode) {
-                        // check that start and end fields are integers
-                        try {
-                            Integer.parseInt(fields.get(3));
-                            Integer.parseInt(fields.get(4));
-                        } catch (NumberFormatException | NullPointerException nfe) {
-                            return false;
+                        while (line.startsWith(Gff3Constants.COMMENT_START)) {
+                            line = br.readLine();
+                            if ( line == null ) {
+                                return false;
+                            }
                         }
-
-                        // check for strand
-
-                        final String strand = fields.get(GENOMIC_STRAND_INDEX);
-                        canDecode &= strand.equals(Strand.POSITIVE.toString()) ||
-                                strand.equals(Strand.NEGATIVE.toString()) ||
-                                strand.equals(Strand.NONE.toString()) ||
-                                strand.equals("?");
+    
+                        // make sure line conforms to gtf spec
+                        final List<String> fields = ParsingUtils.split(line, Gff3Constants.FIELD_DELIMITER);
+    
+                        canDecode &= fields.size() == NUM_FIELDS;
+    
+                        if (canDecode) {
+                            // check that start and end fields are integers
+                            try {
+                                Integer.parseInt(fields.get(3));
+                                Integer.parseInt(fields.get(4));
+                            } catch (NumberFormatException | NullPointerException nfe) {
+                                return false;
+                            }
+    
+                            // check for strand
+    
+                            final String strand = fields.get(GENOMIC_STRAND_INDEX);
+                            canDecode &= strand.equals(Strand.POSITIVE.toString()) ||
+                                    strand.equals(Strand.NEGATIVE.toString()) ||
+                                    strand.equals(Strand.NONE.toString()) ||
+                                    strand.equals("?");
+                        }
                     }
                 }
-
             }
         }
         catch (FileNotFoundException ex) {
