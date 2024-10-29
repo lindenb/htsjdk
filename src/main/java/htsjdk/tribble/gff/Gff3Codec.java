@@ -3,15 +3,11 @@ package htsjdk.tribble.gff;
 import htsjdk.samtools.util.CloserUtil;
 import htsjdk.samtools.util.FileExtensions;
 import htsjdk.samtools.util.IOUtil;
-import htsjdk.samtools.util.LocationAware;
 
 import htsjdk.samtools.util.Log;
-import htsjdk.tribble.AbstractFeatureCodec;
-import htsjdk.tribble.Feature;
 import htsjdk.tribble.FeatureCodecHeader;
 import htsjdk.tribble.TribbleException;
 import htsjdk.tribble.annotation.Strand;
-import htsjdk.tribble.index.tabix.TabixFormat;
 import htsjdk.tribble.readers.*;
 import htsjdk.tribble.util.ParsingUtils;
 
@@ -35,22 +31,7 @@ import java.util.zip.GZIPInputStream;
  * region, using a tribble index.  In this case, a particular feature will only be linked to the subgroup of features it is linked to in the input file which overlap the given region.
  */
 
-public class Gff3Codec extends AbstractFeatureCodec<Gff3Feature, LineIterator> {
-
-
-
-    private static final int NUM_FIELDS = 9;
-
-    private static final int CHROMOSOME_NAME_INDEX = 0;
-    private static final int ANNOTATION_SOURCE_INDEX = 1;
-    private static final int FEATURE_TYPE_INDEX = 2;
-    private static final int START_LOCATION_INDEX = 3;
-    private static final int END_LOCATION_INDEX = 4;
-    private static final int SCORE_INDEX = 5;
-    private static final int GENOMIC_STRAND_INDEX = 6;
-    private static final int GENOMIC_PHASE_INDEX = 7;
-    private static final int EXTRA_FIELDS_INDEX = 8;
-
+public class Gff3Codec extends AbstractGxxCodec {
 
     private static final String IS_CIRCULAR_ATTRIBUTE_KEY = "Is_circular";
 
@@ -68,12 +49,7 @@ public class Gff3Codec extends AbstractFeatureCodec<Gff3Feature, LineIterator> {
 
     private boolean reachedFasta = false;
 
-    private DecodeDepth decodeDepth;
-
     private int currentLine = 0;
-
-    /** filter to removing keys from the EXTRA_FIELDS column */
-    private final Predicate<String> filterOutAttribute;
     
     public Gff3Codec() {
         this(DecodeDepth.DEEP);
@@ -88,9 +64,7 @@ public class Gff3Codec extends AbstractFeatureCodec<Gff3Feature, LineIterator> {
      * @param filterOutAttribute  filter to remove keys from the EXTRA_FIELDS column
      */
     public Gff3Codec(final DecodeDepth decodeDepth, final Predicate<String> filterOutAttribute) {
-        super(Gff3Feature.class);
-        this.decodeDepth = decodeDepth;
-        this.filterOutAttribute = filterOutAttribute;
+       super(decodeDepth, filterOutAttribute);
         /* check required keys are always kept */
         for (final String key : new String[] {Gff3Constants.PARENT_ATTRIBUTE_KEY, Gff3Constants.ID_ATTRIBUTE_KEY, Gff3Constants.NAME_ATTRIBUTE_KEY}) {
             if (filterOutAttribute.test(key)) {
@@ -99,17 +73,7 @@ public class Gff3Codec extends AbstractFeatureCodec<Gff3Feature, LineIterator> {
         }
     }
 
-    public enum DecodeDepth {
-        DEEP ,
-        SHALLOW
-    }
-    
-    @Override
-    public Gff3Feature decode(final LineIterator lineIterator) throws IOException {
-        return decode(lineIterator, decodeDepth);
-    }
-
-    private Gff3Feature decode(final LineIterator lineIterator, final DecodeDepth depth) throws IOException {
+    protected Gff3Feature decode(final LineIterator lineIterator, final DecodeDepth depth) throws IOException {
         currentLine++;
         /*
         Basic strategy: Load features into deque, create maps from a features ID to it, and from a features parents' IDs to it.  For each feature, link to parents using these maps.
@@ -291,11 +255,6 @@ public class Gff3Codec extends AbstractFeatureCodec<Gff3Feature, LineIterator> {
     }
 
     @Override
-    public Feature decodeLoc(LineIterator lineIterator) throws IOException {
-        return decode(lineIterator, DecodeDepth.SHALLOW);
-    }
-
-    @Override
     public boolean canDecode(final String inputFilePath) {
         boolean canDecode;
         try {
@@ -331,8 +290,8 @@ public class Gff3Codec extends AbstractFeatureCodec<Gff3Feature, LineIterator> {
                     if (canDecode) {
                         // check that start and end fields are integers
                         try {
-                            final int start = Integer.parseInt(fields.get(3));
-                            final int end = Integer.parseInt(fields.get(4));
+                            Integer.parseInt(fields.get(3));
+                            Integer.parseInt(fields.get(4));
                         } catch (NumberFormatException | NullPointerException nfe) {
                             return false;
                         }
@@ -376,20 +335,8 @@ public class Gff3Codec extends AbstractFeatureCodec<Gff3Feature, LineIterator> {
         return decodedValues;
     }
 
-    static String extractSingleAttribute(final List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return null;
-        }
-
-        if (values.size() != 1) {
-            throw new TribbleException("Attribute has multiple values when only one expected");
-        }
-        return values.get(0);
-    }
-
     @Override
     public FeatureCodecHeader readHeader(LineIterator lineIterator) {
-
         List<String> header = new ArrayList<>();
         while(lineIterator.hasNext()) {
             String line = lineIterator.peek();
@@ -462,16 +409,6 @@ public class Gff3Codec extends AbstractFeatureCodec<Gff3Feature, LineIterator> {
     }
 
     @Override
-    public LineIterator makeSourceFromStream(final InputStream bufferedInputStream) {
-        return new LineIteratorImpl(new SynchronousLineReader(bufferedInputStream));
-    }
-
-    @Override
-    public LocationAware makeIndexableSourceFromStream(final InputStream bufferedInputStream) {
-        return new AsciiLineReaderIterator(AsciiLineReader.from(bufferedInputStream));
-    }
-
-    @Override
     public boolean isDone(final LineIterator lineIterator) {
         return !lineIterator.hasNext() && activeFeatures.isEmpty() && featuresToFlush.isEmpty();
     }
@@ -484,11 +421,6 @@ public class Gff3Codec extends AbstractFeatureCodec<Gff3Feature, LineIterator> {
         activeFeatures.clear();
         activeParentIDs.clear();
         CloserUtil.close(lineIterator);
-    }
-
-    @Override
-    public TabixFormat getTabixFormat() {
-        return TabixFormat.GFF;
     }
 
     /**
