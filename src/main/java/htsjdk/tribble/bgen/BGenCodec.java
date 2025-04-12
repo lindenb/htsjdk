@@ -1,6 +1,7 @@
 package htsjdk.tribble.bgen;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -195,44 +196,120 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
     	 final int C_data_length = longToUnsignedInt(binaryCodec.readUInt());
          System.err.println(" data_length is : "+C_data_length);
          System.err.println(" getCompressedSNPBlocks is : "+ this.header.getCompressedSNPBlocks());
-         final int total_length_D;
+         final int uncompressed_data_length;
          if(header.getCompressedSNPBlocks()==0) {
-              total_length_D = C_data_length;
+              uncompressed_data_length = C_data_length;
               } else {
-               total_length_D = (int)binaryCodec.readUInt();
+               uncompressed_data_length = (int)binaryCodec.readUInt();
               }
-         System.err.println(" unciompressed data_length is : "+total_length_D);
+         System.err.println(" unciompressed data_length is : "+uncompressed_data_length);
          ctx.compressed_data = readNBytes(binaryCodec, C_data_length-4);
-	 }
-	 
 	
             try(InputStream zin = uncompress(new ByteArrayInputStream(ctx.compressed_data),header.getCompressedSNPBlocks())) {
-                BinaryCodec c2 = new BinaryCodec(zin);
-                ctx.n_samples = (int)c2.readUInt();
+            	int n_reads = 0;
+                final BinaryCodec c2 = new BinaryCodec(zin);
+                ctx.n_samples = longToUnsignedInt(c2.readUInt());
+                n_reads += 4;
                 if(ctx.n_samples <0) throw new TribbleException("ctx.n_samples <0 ("+ctx.n_samples +")");
                 System.err.println(" :n_samples2 is : "+ctx.n_samples);
-                int n_alleles = (int)c2.readUShort();
+                
+                
+                final int n_alleles = (int)c2.readUShort();
                 System.err.println(" :n_alleles is : "+n_alleles);
                 ctx.min_ploidy  = (int)c2.readUByte();
+                if(ctx.min_ploidy  <0 || ctx.min_ploidy >63) throw new TribbleException("bad ctx.min_ploidy  ("+ctx.min_ploidy +")");
                 System.err.println(" :min_ploidy is : "+ ctx.min_ploidy);
+                n_reads++;
+                
                 ctx.max_ploidy  = (int)c2.readUByte();
                 System.err.println(" :max_ploidy is : "+ctx.max_ploidy);
+                if(ctx.max_ploidy  <0 || ctx.max_ploidy >63) throw new TribbleException("bad ctx.max_ploidy  ("+ctx.max_ploidy +")");
+                 n_reads++;
+                
                 byte[] ploidy_array = readNBytes(c2, ctx.n_samples);
+                for(int x=0;x < ploidy_array.length ;x++) {System.err.print("ploidy["+(x+1)+"]="+(int)ploidy_array[x]+";");} System.err.println();
+                n_reads += ctx.n_samples;
+                
                 boolean phased  = c2.readUByte()==1;
                 System.err.println(" :phased is : "+phased);
-                int B=  (int)c2.readUByte();
+                n_reads++;
+                
+                final int B=  (int)c2.readUByte();
                 System.err.println(" :B is : "+B+" so number of bits is "+(B*ctx.n_samples));
+                if(B  <0 || B > 32) throw new TribbleException("bad num of bits  ("+ B +")");
+                n_reads++;
+                
+                
+               
+                
+                System.err.println("bits read n="+(B*ctx.n_samples));
+                
+                //byte[] remains= readNBytes(c2, uncompressed_data_length - n_reads);
                 int storage_gt = (int)Math.ceil((B*ctx.n_samples)/8.0);
-                byte[] storage= new byte[storage_gt];
-                c2.readBytes(storage);
-                BitSet genotypebits = BitSet.valueOf(storage);
+                //byte[] storage= new byte[storage_gt];
+                //c2.readBytes(storage);
+                //BitSet genotypebits = BitSet.valueOf(storage);
                 if(phased) {
+                     int c;
+		        BitReader br=new BitReader(c2.getInputStream());
+		        for(int hap=0;hap<2;++hap) {
+		        while((c=br.read())!=-1) {
+		        	System.err.print(c);
+		        	}
+		        System.err.print("and then");
+		        System.err.println();
+		        }
                     }
                 else
                     {
                     }
                 c2.close();
            	}
+    	}
+    
+    private static byte[] uncompress(byte[] array,int type) throws IOException {
+    	try(InputStream in = uncompress(new ByteArrayInputStream(array),type)) {
+        	try(ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+			htsjdk.samtools.util.IOUtil.copyStream(in, os);
+			os.flush();
+			return os.toByteArray();
+			}
+        	}
+        }
+        
+    private static class BitReader {
+    	private InputStream in;
+    	byte curr;
+    	int offset=8;
+    	BitReader(InputStream in) {
+    		this.in = in;
+    		}
+    	int read() throws IOException {
+    		if(offset>=8) {
+    			int c= in.read();
+    			if(c==-1) return -1;
+    			this.curr=(byte)c;
+    			offset=0;
+    			}
+    		int bit = (curr >> (7 - offset)) & 1;
+       	offset++;
+        	return bit;
+    		}
+    		/*
+    	    public int readNumber(int n) throws IOException {
+		int result = 0;
+		for (int i = 0; i < n; i++) {
+			int bit = read();
+			if (bit == -1) {
+				return -1; // End of stream reached before n bits
+			    }
+			result = (result << 1) | bit;
+			}
+		  return result;
+		  }*/
+	public void close() throws IOException {
+		in.close();
+		}
     	}
     
     private static InputStream uncompress(InputStream is,int type) throws IOException {

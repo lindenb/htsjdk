@@ -18,10 +18,12 @@ private void writeIndex( Path path) throws Exception {
 	}
 
 private void read1(String filename) throws Exception {
+System.err.println(filename);
 	final Path path = Paths.get(filename);
 	try(BGenFileReader r= new BGenFileReader(path)) {
 		try(CloseableIterator<BGenFeature> iter=r.iterator()) {
 			while(iter.hasNext()) {
+			System.err.println(filename);
 				iter.next();
 				}
 			}
