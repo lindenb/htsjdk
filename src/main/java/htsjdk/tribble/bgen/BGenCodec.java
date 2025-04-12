@@ -18,39 +18,21 @@ import htsjdk.tribble.FeatureCodecHeader;
 import htsjdk.tribble.TribbleException;
 import htsjdk.tribble.readers.PositionalBufferedStream;
 import htsjdk.variant.variantcontext.Allele;
+import java.util.zip.*;
 
 /**
- * 
- * 
- * 
- * 
  * see also : https://github.com/limix/bgen
- *
+ *    https://github.com/limix/bgen/blob/main/bgen-file-format.pdf
  */
 
 public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
-    
-    static class BGenLayout
-    {
-        int    layout;
-        int    nsamples;
-        int    nalleles;
-        int     phased;
-        int     nbits;
-        uint8_t*    ploidy_missingness;
-        int    ncombs;
-        int     min_ploidy;
-        int     max_ploidy;
-        byte[]       chunk;
-        byte[] chunk_ptr;
-        long    offset;
-        };
-
-    
     private BGenHeader header;
+    private boolean debug = true;
+    
     public BGenCodec() {
         }
     
+    /** convert a long to int, throws a tribble exception if the number is greater than Integer.MAX_VALUE */
     static int longToUnsignedInt(long n) {
         if(n>Integer.MAX_VALUE || n<0) throw new TribbleException("Cannot convert "+n+"L to int");
         return (int)n;
@@ -92,6 +74,8 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
         //Free data area. This could be used to store, for example, identifying information about the file
         byte[] free_area = new byte[header_block_size-20];
         binaryCodec.readBytes(free_area);
+        free_area = null;
+        
         // A set of flags, with bits numbered as for an unsigned integer. See below for flag definitions.
         byte flags[]=new byte[4];
         binaryCodec.readBytes(flags);
@@ -134,74 +118,94 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
         int number_of_individuals_M = -1;
         
         if(this.header.getLayout()==1) {
-            try {
-                number_of_individuals_M = longToUnsignedInt(binaryCodec.readUInt());
-                }
-            catch(EOFException err) {
-                return null;
-                }
+            number_of_individuals_M = longToUnsignedInt(binaryCodec.readUInt());
             }
-        BGenFeature ctx=new BGenFeature();
+        final BGenFeature ctx=new BGenFeature();
         
 
-        int id_len = binaryCodec.readUShort();
-        byte[] variant_id_as_bytes = new byte[id_len];
-        binaryCodec.readBytes(variant_id_as_bytes);
-        ctx.variant_id = new String(variant_id_as_bytes);
+        ctx.variant_id = readStringUInt16(binaryCodec);
         System.err.println("variant_id is : "+ctx.variant_id);
         //
-        id_len = binaryCodec.readUShort();
-        variant_id_as_bytes = new byte[id_len];
-        binaryCodec.readBytes(variant_id_as_bytes);
-        ctx.rs_id = new String(variant_id_as_bytes);
+        ctx.rs_id = readStringUInt16(binaryCodec);
         System.err.println("rs_id is : "+ctx.rs_id);
         //
-        id_len = binaryCodec.readUShort();
-        variant_id_as_bytes = new byte[id_len];
-        binaryCodec.readBytes(variant_id_as_bytes);
-        ctx.chrom = new String(variant_id_as_bytes);
+        ctx.chrom = readStringUInt16(binaryCodec);
         System.err.println("contig is : "+ctx.chrom);
         
         ctx.position_int32 = longToUnsignedInt(binaryCodec.readUInt());
-        int  num_alleles;
-        if(this.header.getLayout()!=1) {
-            num_alleles = binaryCodec.readUShort();
+        
+      
+        
+        //ctx.genotypes=new BGenGenotype[num_samples];
+        
+        switch(header.getLayout()) {
+            case 1 : readLayout1(ctx, binaryCodec); break;
+            case 2 : readLayout2(ctx, binaryCodec); break;
+            default: throw new TribbleException("unknown layout type (" + header.getLayout() + ")");
             }
-        else
-            {
-            num_alleles=2;
+        return ctx;
+        }
+    
+    /** fully read 'len' bytes */
+    private byte[] readNBytes(final BinaryCodec binaryCodec, final int len) throws IOException {
+    	if(len<0) throw new IllegalArgumentException("negative bytes length:" + len);
+        final byte[] bytes = new byte[len];
+        binaryCodec.readBytes(bytes);
+        return bytes;
+    	}
+    
+    /**
+     * read a string of length 'len'
+     */
+    private String readString(final BinaryCodec binaryCodec, final int len) throws IOException {
+        return new String(readNBytes(binaryCodec, len));
+    	}
+    	
+    private String[] readNAlleles(final BinaryCodec binaryCodec, int num_alleles) throws IOException {
+      final String[] alleles = new String[num_alleles];
+      for(int k=0;k< num_alleles;++k) {
+            alleles[k] = readStringUInt64(binaryCodec);
+            System.err.println("alelele "+(k+1)+"/"+num_alleles+" is : "+alleles[k]);
             }
-        ctx.alleles = new Allele[num_alleles];
+      return alleles;
+      }     
+            
+    /** read the length of a string as unsigned long and read the string */
+    private String readStringUInt64(final BinaryCodec binaryCodec) throws IOException {
+    	return readString(binaryCodec, longToUnsignedInt(binaryCodec.readUInt()));
+    	}
+    /** read the length of a string as unsigned short and read the string */
+    private String readStringUInt16(final BinaryCodec binaryCodec) throws IOException {
+    	return readString(binaryCodec, binaryCodec.readUShort());
+    	}
+    
+    private void readLayout1(final BGenFeature ctx, final BinaryCodec binaryCodec) throws IOException {
+    	// for layout 1 the number of alleles is always 2
+	ctx.alleles = readNAlleles(binaryCodec, 2);
+	throw new IOException("cannot read layout 1");
+    	}
+    
+    private void readLayout2(final BGenFeature ctx, final BinaryCodec binaryCodec) throws IOException {
+    	  final int  num_alleles  = binaryCodec.readUShort(); 
+    	  System.err.println(" num_alleles is : "+num_alleles);
+          ctx.alleles = readNAlleles(binaryCodec, num_alleles);
+	 // The total length C of the rest of the data for this variant. Seeking forward this many bytes takes you to the next variant data block. 
+    	 final int C_data_length = longToUnsignedInt(binaryCodec.readUInt());
+         System.err.println(" data_length is : "+C_data_length);
+         System.err.println(" getCompressedSNPBlocks is : "+ this.header.getCompressedSNPBlocks());
+         final int total_length_D;
+         if(header.getCompressedSNPBlocks()==0) {
+              total_length_D = C_data_length;
+              } else {
+               total_length_D = (int)binaryCodec.readUInt();
+              }
+          System.err.println(" unciompressed data_length is : "+total_length_D);
+         final byte[] compressed_data = readNBytes(binaryCodec, C_data_length-4);
 
-        for(int k=0;k< num_alleles;++k) {
-            int len_allele_str = longToUnsignedInt(binaryCodec.readUInt());
-            variant_id_as_bytes = new byte[len_allele_str];
-            binaryCodec.readBytes(variant_id_as_bytes);
-            ctx.alleles[k]=Allele.create(variant_id_as_bytes, k==0);
-            System.err.println("alelele "+(k+1)+"/"+num_alleles+" is : "+ctx.alleles[k]);
-            }
-        
-        ctx.genotypes=new BGenGenotype[num_samples];
-        
-        if(header.getLayout()==1) {
-            throw new IllegalArgumentException("cannot read layout 1");
-            }
-        else
-            {
-            int data_length = (int)binaryCodec.readUInt();
-            System.err.println(" data_length is : "+data_length);
-            int total_length_D=data_length;
-            if(header.getCompressedSNPBlocks()!=0) {
-                total_length_D = (int)binaryCodec.readUInt();
-                }
-            byte[] compressed_data = new byte[data_length-4];
-            binaryCodec.readBytes(compressed_data);
-            CompressedGenotypeData gt=new CompressedGenotypeData(compressed_data);
-            
-            
             try(InputStream zin = uncompress(new ByteArrayInputStream(compressed_data),header.getCompressedSNPBlocks())) {
                 BinaryCodec c2 = new BinaryCodec(zin);
                 ctx.n_samples = (int)c2.readUInt();
+                if(ctx.n_samples <0) throw new TribbleException("ctx.n_samples <0 ("+ctx.n_samples +")");
                 System.err.println(" :n_samples2 is : "+ctx.n_samples);
                 int n_alleles = (int)c2.readUShort();
                 System.err.println(" :n_alleles is : "+n_alleles);
@@ -225,82 +229,15 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
                     {
                     }
                 c2.close();
-                }
-            catch(IOException err) {
-                err.printStackTrace();
-                return null;
-                }
-            }
-        
-        }
+           	}
+    	}
     
     private static InputStream uncompress(InputStream is,int type) throws IOException {
         switch(type) {
             case 0: return is;
+            case 1 : return new java.util.zip.InflaterInputStream(is);
             case 2 : return new ZstdCompressorInputStream(is);
             default: throw new IOException("unsupported compression type:"+type);
             }
         }
-    
-    static  int read_ploidy(byte ploidy_miss) { 
-        return ploidy_miss & 127;
-        }
-    
-    static void read_phased_genotype_32(BGenLayout genotype, float[] probs)     
-    {                                                                                         
-        int nbits = genotype.nbits;                                                     
-        int nalleles = genotype.nalleles;                                               
-        int  max_ploidy = genotype.max_ploidy;        
-        int probs_idx=0;
-        float   denom = (float)((((uint64_t)1 << nbits)) - 1);                              
-                                                                                              
-        int sample_start = 0;                                                            
-        for (int j = 0; j < genotype.nsamples; ++j) {                                   
-            int ploidy = read_ploidy(genotype.ploidy_missingness[j]);                   
-            float*  pend = probs + max_ploidy * nalleles;                                    
-                                                                                              
-            if (read_missingness(genotype.ploidy_missingness[j]) != 0) {                     
-                set_array_nan##32(probs, (size_t)(pend - probs));                           
-                probs = pend;                                                                 
-                sample_start += nbits * ploidy * (nalleles - 1);                              
-                continue;                                                                     
-            }                                                                                 
-                                                                                              
-            int haplo_start = 0;                                                         
-            for (int i = 0; i < ploidy; ++i) {                                            
-                                                                                              
-                int uip_sum = 0;                                                         
-                int allele_start = 0;                                                    
-                for (int ii = 0; ii < nalleles - 1; ++ii) {                              
-                                                                                              
-                    int ui_prob = 0;                                                     
-                    int offset = sample_start + haplo_start + allele_start;              
-                                                                                              
-                    for (int bi = 0; bi < nbits; ++bi) {                                  
-                                                                                              
-                        if (get_bit(genotype.chunk_ptr, bi + offset)) {                      
-                            ui_prob |= ((int)1 << bi);                                   
-                        }                                                                     
-                    }                                                                         
-                                                                                              
-                    probs[probs_idx] = (float)ui_prob / denom;                                         
-                    ++probs_idx;                                                                  
-                    uip_sum += ui_prob;                                                       
-                    allele_start += nbits;                                                    
-                }                                                                             
-                probs[probs_idx] = (denom - (float)uip_sum) / denom;                                   
-                ++probs_idx;                                                                      
-                haplo_start += nbits * (nalleles - 1);                                        
-            }                                                                                 
-            sample_start += nbits * ploidy * (nalleles - 1);       
-            
-            for(int i=probs_idx;i< probs.length;++i) {
-                probs[i]=Float.NaN;
-                }
-            probs = pend;                                                                     
-        }                                                                                     
-    }
-
-
-    
 }

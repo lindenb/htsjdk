@@ -8,7 +8,7 @@ public class BGenFeature implements Feature {
     String rs_id;
     String chrom;
     int position_int32;
-    Allele[] alleles;
+    String[] alleles;
     byte[] ploidy;
     //
     int n_samples;
@@ -23,7 +23,7 @@ public class BGenFeature implements Feature {
         }
     @Override
     public int getEnd() {
-        return position_int32 + (alleles.length==0?0: alleles[0].length()-1);
+        return getStart();
         }
     
 }
