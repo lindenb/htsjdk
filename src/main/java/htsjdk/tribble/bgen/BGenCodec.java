@@ -185,6 +185,8 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
 	throw new IOException("cannot read layout 1");
     	}
     
+
+    
     private void readLayout2(final BGenFeature ctx, final BinaryCodec binaryCodec) throws IOException {
     	  final int  num_alleles  = binaryCodec.readUShort(); 
     	  System.err.println(" num_alleles is : "+num_alleles);
@@ -199,23 +201,24 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
               } else {
                total_length_D = (int)binaryCodec.readUInt();
               }
-          System.err.println(" unciompressed data_length is : "+total_length_D);
-         final byte[] compressed_data = readNBytes(binaryCodec, C_data_length-4);
-
-            try(InputStream zin = uncompress(new ByteArrayInputStream(compressed_data),header.getCompressedSNPBlocks())) {
+         System.err.println(" unciompressed data_length is : "+total_length_D);
+         ctx.compressed_data = readNBytes(binaryCodec, C_data_length-4);
+	 }
+	 
+	
+            try(InputStream zin = uncompress(new ByteArrayInputStream(ctx.compressed_data),header.getCompressedSNPBlocks())) {
                 BinaryCodec c2 = new BinaryCodec(zin);
                 ctx.n_samples = (int)c2.readUInt();
                 if(ctx.n_samples <0) throw new TribbleException("ctx.n_samples <0 ("+ctx.n_samples +")");
                 System.err.println(" :n_samples2 is : "+ctx.n_samples);
                 int n_alleles = (int)c2.readUShort();
                 System.err.println(" :n_alleles is : "+n_alleles);
-                int min_ploidy  = (int)c2.readUByte();
-                System.err.println(" :min_ploidy is : "+min_ploidy);
-                int max_ploidy  = (int)c2.readUByte();
-                System.err.println(" :max_ploidy is : "+max_ploidy);
-                byte[] ploidy_array=new byte[ctx.n_samples];
-                c2.readBytes(ploidy_array);
-                int phased  = (int)c2.readUByte();
+                ctx.min_ploidy  = (int)c2.readUByte();
+                System.err.println(" :min_ploidy is : "+ ctx.min_ploidy);
+                ctx.max_ploidy  = (int)c2.readUByte();
+                System.err.println(" :max_ploidy is : "+ctx.max_ploidy);
+                byte[] ploidy_array = readNBytes(c2, ctx.n_samples);
+                boolean phased  = c2.readUByte()==1;
                 System.err.println(" :phased is : "+phased);
                 int B=  (int)c2.readUByte();
                 System.err.println(" :B is : "+B+" so number of bits is "+(B*ctx.n_samples));
@@ -223,7 +226,7 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
                 byte[] storage= new byte[storage_gt];
                 c2.readBytes(storage);
                 BitSet genotypebits = BitSet.valueOf(storage);
-                if(phased==1) {
+                if(phased) {
                     }
                 else
                     {

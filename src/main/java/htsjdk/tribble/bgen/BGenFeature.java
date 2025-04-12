@@ -9,9 +9,11 @@ public class BGenFeature implements Feature {
     String chrom;
     int position_int32;
     String[] alleles;
-    byte[] ploidy;
+    int min_ploidy;
+    int max_ploidy;
     //
     int n_samples;
+    byte[] compressed_data = null;
     
     @Override
     public String getContig() {
