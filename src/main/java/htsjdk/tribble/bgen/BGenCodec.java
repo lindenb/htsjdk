@@ -24,11 +24,81 @@ import java.util.zip.*;
 /**
  * see also : https://github.com/limix/bgen
  *    https://github.com/limix/bgen/blob/main/bgen-file-format.pdf
+ *    https://github.com/molgenis/systemsgenetics/blob/master/Genotype-IO/src/main/java/org/molgenis/genotype/bgen/BgenGenotypeData.java#L998
  */
 
 public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
     private BGenHeader header;
     private boolean debug = true;
+    
+    private abstract class AbstractBGenGenotype implements BGenGenotype {
+    	final int sample_idx;
+    	AbstractBGenGenotype(int sample_idx) {
+    		this.sample_idx = sample_idx;
+    		}
+    	}
+    
+    private class BGenGenotypeLayout1 extends AbstractBGenGenotype {
+    	final double[] probs = new double[3];
+    	BGenGenotypeLayout1(int sample_idx) {
+    		super(sample_idx);
+    		}
+    	@Override
+    	public final int getPloidy() {
+    		return 2;
+    		}
+    	@Override
+    	public final boolean isMissing() {
+    		return false;
+    		}
+    	}
+    	
+        private class BGenGenotypeLayout2 extends AbstractBGenGenotype {
+        byte ploidy_byte;
+        BGenGenotypeLayout2(int sample_idx) {
+    		super(sample_idx);
+    		}
+        @Override
+    	public int getPloidy() {
+    		return (this.ploidy_byte & 0x3F);
+    		}
+    	@Override
+    	public boolean isMissing() {
+    		return (this.ploidy_byte & 0x80) == 128;
+    		}
+        }
+    
+    private class BGenFeatureImpl implements BGenFeature {
+    	 String variant_id;
+    	    String rs_id;
+    	    String chrom;
+    	    int position_int32;
+    	    String[] alleles;
+    	    int min_ploidy;
+    	    int max_ploidy;
+    	    BGenGenotypeImpl[] genotypes;
+    	    //
+    	    byte[] compressed_data = null;
+    	    
+    	    @Override
+    	    public String getContig() {
+    	        return chrom;
+    	        }
+    	    @Override
+    	    public int getStart() {
+    	        return position_int32;
+    	        }
+    	    @Override
+    	    public int getEnd() {
+    	        return getStart() + Arrays.stream(alleles).mapToInt(A->A.length()-1).max().orElse(0);
+    	        }
+    	    
+    	    public int getNGenotypes() { return this.genotypes.length;}
+    	    public BGenGenotype getGenotyper(int index) { return this.genotypes[index];}
+    	    public int getPloidy() { return 2;}
+    	    public boolean isMissing() { return true;}
+    }
+    
     
     public BGenCodec() {
         }
@@ -98,6 +168,16 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
                 }
             header.samples= Collections.unmodifiableList(samples);
             }
+        else {
+        	header.samples = new java.util.AbstractList<>() {
+        		@Override
+        		public int size() { return num_samples;}
+        		@Override
+        		public String get(int index) {
+        			return "$"+(index+1);
+        			}
+        		};
+        }
         return header;
         }
     
@@ -121,7 +201,7 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
         if(this.header.getLayout()==1) {
             number_of_individuals_M = longToUnsignedInt(binaryCodec.readUInt());
             }
-        final BGenFeature ctx=new BGenFeature();
+        final BGenFeatureImpl ctx=new BGenFeatureImpl();
         
 
         ctx.variant_id = readStringUInt16(binaryCodec);
@@ -180,15 +260,21 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
     	return readString(binaryCodec, binaryCodec.readUShort());
     	}
     
-    private void readLayout1(final BGenFeature ctx, final BinaryCodec binaryCodec) throws IOException {
+    private void readLayout1(final BGenFeatureImpl ctx, final BinaryCodec binaryCodec) throws IOException {
     	// for layout 1 the number of alleles is always 2
 	ctx.alleles = readNAlleles(binaryCodec, 2);
-	throw new IOException("cannot read layout 1");
+	for(int i=0;i< ctx.getNSamples();++i) {
+		final BGenGenotypeLayout1 gt = new BGenGenotypeLayout1(i);
+		for(int i=0;i< probs.length;i++) {
+			gt.probs[i] = ((double)binaryCodec.readUShort() / (Short.MAX_VALUE*1.0));
+			}
+		ctx.genotypes.add(gt);
+		}
     	}
     
 
     
-    private void readLayout2(final BGenFeature ctx, final BinaryCodec binaryCodec) throws IOException {
+    private void readLayout2(final BGenFeatureImpl ctx, final BinaryCodec binaryCodec) throws IOException {
     	  final int  num_alleles  = binaryCodec.readUShort(); 
     	  System.err.println(" num_alleles is : "+num_alleles);
           ctx.alleles = readNAlleles(binaryCodec, num_alleles);
@@ -208,10 +294,15 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
             try(InputStream zin = uncompress(new ByteArrayInputStream(ctx.compressed_data),header.getCompressedSNPBlocks())) {
             	int n_reads = 0;
                 final BinaryCodec c2 = new BinaryCodec(zin);
-                ctx.n_samples = longToUnsignedInt(c2.readUInt());
-                n_reads += 4;
-                if(ctx.n_samples <0) throw new TribbleException("ctx.n_samples <0 ("+ctx.n_samples +")");
-                System.err.println(" :n_samples2 is : "+ctx.n_samples);
+                final int n_samples = longToUnsignedInt(c2.readUInt());
+                if(n_samples <0) throw new TribbleException("ctx.n_samples <0 (" +n_samples +")");
+                ctx.genotypes = new BGenGenotypeImpl[n_samples];
+                for(int i=0;i< n_samples;i++) {
+                	ctx.genotypes[i]= new BGenGenotypeLayout2(i);
+                }
+                
+                
+                System.err.println(" :n_samples2 is : "+n_samples);
                 
                 
                 final int n_alleles = (int)c2.readUShort();
@@ -219,33 +310,25 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
                 ctx.min_ploidy  = (int)c2.readUByte();
                 if(ctx.min_ploidy  <0 || ctx.min_ploidy >63) throw new TribbleException("bad ctx.min_ploidy  ("+ctx.min_ploidy +")");
                 System.err.println(" :min_ploidy is : "+ ctx.min_ploidy);
-                n_reads++;
                 
                 ctx.max_ploidy  = (int)c2.readUByte();
                 System.err.println(" :max_ploidy is : "+ctx.max_ploidy);
                 if(ctx.max_ploidy  <0 || ctx.max_ploidy >63) throw new TribbleException("bad ctx.max_ploidy  ("+ctx.max_ploidy +")");
-                 n_reads++;
                 
-                byte[] ploidy_array = readNBytes(c2, ctx.n_samples);
-                for(int x=0;x < ploidy_array.length ;x++) {System.err.print("ploidy["+(x+1)+"]="+(int)ploidy_array[x]+";");} System.err.println();
-                n_reads += ctx.n_samples;
+                for(int x=0;x < n_samples ;x++) {
+                	ctx.genotypes[x].ploidy= c2.readByte();
+                	}
                 
-                boolean phased  = c2.readUByte()==1;
+                final boolean phased  = c2.readUByte()==1;
                 System.err.println(" :phased is : "+phased);
-                n_reads++;
                 
                 final int B=  (int)c2.readUByte();
-                System.err.println(" :B is : "+B+" so number of bits is "+(B*ctx.n_samples));
                 if(B  <0 || B > 32) throw new TribbleException("bad num of bits  ("+ B +")");
                 n_reads++;
                 
                 
-               
-                
-                System.err.println("bits read n="+(B*ctx.n_samples));
-                
                 //byte[] remains= readNBytes(c2, uncompressed_data_length - n_reads);
-                int storage_gt = (int)Math.ceil((B*ctx.n_samples)/8.0);
+                //int storage_gt = (int)Math.ceil((B*n_samples)/8.0);
                 //byte[] storage= new byte[storage_gt];
                 //c2.readBytes(storage);
                 //BitSet genotypebits = BitSet.valueOf(storage);
@@ -256,8 +339,6 @@ public class BGenCodec extends BinaryFeatureCodec<BGenFeature> {
 		        while((c=br.read())!=-1) {
 		        	System.err.print(c);
 		        	}
-		        System.err.print("and then");
-		        System.err.println();
 		        }
                     }
                 else

@@ -29,4 +29,10 @@ public class BGenHeader {
                 (this.headerFlags.get(2)?1:0);
         }
     
-}
+    public List<String> getSamples() {
+    	return this.samples;
+    	}
+    public int getNSamples() {
+    	return this.samples.size();
+    	}
+   }
